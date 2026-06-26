@@ -8,6 +8,7 @@ from typing import List, Union, Dict, Any
 logger = logging.getLogger(__name__)
 
 from api.openai_client import OpenAIClient
+from api.litellm_client import LiteLLMClient
 from api.openrouter_client import OpenRouterClient
 from api.bedrock_client import BedrockClient
 from api.google_embedder_client import GoogleEmbedderClient
@@ -17,6 +18,7 @@ from adalflow import GoogleGenAIClient, OllamaClient
 
 # Get API keys from environment variables
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+LITELLM_API_KEY = os.environ.get('LITELLM_API_KEY')
 GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
 AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
@@ -28,6 +30,8 @@ AWS_ROLE_ARN = os.environ.get('AWS_ROLE_ARN')
 # Set keys in environment (in case they're needed elsewhere in the code)
 if OPENAI_API_KEY:
     os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+if LITELLM_API_KEY:
+    os.environ["LITELLM_API_KEY"] = LITELLM_API_KEY
 if GOOGLE_API_KEY:
     os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
 if OPENROUTER_API_KEY:
@@ -59,6 +63,7 @@ CLIENT_CLASSES = {
     "GoogleGenAIClient": GoogleGenAIClient,
     "GoogleEmbedderClient": GoogleEmbedderClient,
     "OpenAIClient": OpenAIClient,
+    "LiteLLMClient" : LiteLLMClient,
     "OpenRouterClient": OpenRouterClient,
     "OllamaClient": OllamaClient,
     "BedrockClient": BedrockClient,
@@ -131,10 +136,11 @@ def load_generator_config():
             if provider_config.get("client_class") in CLIENT_CLASSES:
                 provider_config["model_client"] = CLIENT_CLASSES[provider_config["client_class"]]
             # Fall back to default mapping based on provider_id
-            elif provider_id in ["google", "openai", "openrouter", "ollama", "bedrock", "azure", "dashscope"]:
+            elif provider_id in ["google", "openai", "openrouter", "ollama", "bedrock", "azure", "dashscope", "litellm"]:
                 default_map = {
                     "google": GoogleGenAIClient,
                     "openai": OpenAIClient,
+                    "litellm": LiteLLMClient,
                     "openrouter": OpenRouterClient,
                     "ollama": OllamaClient,
                     "bedrock": BedrockClient,

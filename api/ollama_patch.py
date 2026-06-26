@@ -31,7 +31,8 @@ def check_ollama_model_exists(model_name: str, ollama_host: str = None) -> bool:
     """
     if ollama_host is None:
         ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-    
+    else:
+        print(f"Current (unmodified from env) Ollama host: {ollama_host}")
     try:
         # Remove /api prefix if present and add it back
         if ollama_host.endswith('/api'):
