@@ -154,7 +154,7 @@ class RAG(adal.Component):
     """RAG with one repo.
     If you want to load a new repos, call prepare_retriever(repo_url_or_path) first."""
 
-    def __init__(self, provider="google", model=None, use_s3: bool = False):  # noqa: F841 - use_s3 is kept for compatibility
+    def __init__(self, provider="google", model=None, use_s3: bool = False, embed_model: str = None): # noqa: F841 - use_s3 is kept for compatibility
         """
         Initialize the RAG component.
 
@@ -167,6 +167,7 @@ class RAG(adal.Component):
 
         self.provider = provider
         self.model = model
+        self.embed_model = embed_model  # Optional Ollama embedding model override
 
         # Import the helper functions
         from api.config import get_embedder_config, get_embedder_type
@@ -175,20 +176,24 @@ class RAG(adal.Component):
         self.embedder_type = get_embedder_type()
         self.is_ollama_embedder = (self.embedder_type == 'ollama')  # Backward compatibility
 
-        # Check if Ollama model exists before proceeding
-        if self.is_ollama_embedder:
-            from api.ollama_patch import check_ollama_model_exists
-            from api.config import get_embedder_config
-            
-            embedder_config = get_embedder_config()
-            if embedder_config and embedder_config.get("model_kwargs", {}).get("model"):
-                model_name = embedder_config["model_kwargs"]["model"]
-                if not check_ollama_model_exists(model_name):
-                    raise Exception(f"Ollama model '{model_name}' not found. Please run 'ollama pull {model_name}' to install it.")
+        # Check if Ollama model exists before proceeding  
+        if self.is_ollama_embedder:  
+            from api.ollama_patch import check_ollama_model_exists  
+            from api.config import get_embedder_config  
+  
+            model_name = embed_model  # Use override if provided  
+            if not model_name:  
+                embedder_config = get_embedder_config()  
+                if embedder_config and embedder_config.get("model_kwargs", {}).get("model"):  
+                    model_name = embedder_config["model_kwargs"]["model"]  
+  
+            if model_name and not check_ollama_model_exists(model_name):  
+                raise Exception(f"Ollama model '{model_name}' not found. Please run 'ollama pull {model_name}' to install it.")
 
         # Initialize components
         self.memory = Memory()
-        self.embedder = get_embedder(embedder_type=self.embedder_type)
+        # self.embedder = get_embedder(embedder_type=self.embedder_type)
+        self.embedder = get_embedder(embedder_type=self.embedder_type, model_override=embed_model)
 
         self_weakref = weakref.ref(self)
         # Patch: ensure query embedding is always single string for Ollama
@@ -359,15 +364,16 @@ IMPORTANT FORMATTING RULES:
         """
         self.initialize_db_manager()
         self.repo_url_or_path = repo_url_or_path
-        self.transformed_docs = self.db_manager.prepare_database(
-            repo_url_or_path,
-            type,
-            access_token,
-            embedder_type=self.embedder_type,
-            excluded_dirs=excluded_dirs,
-            excluded_files=excluded_files,
-            included_dirs=included_dirs,
-            included_files=included_files
+        self.transformed_docs = self.db_manager.prepare_database(  
+            repo_url_or_path,  
+            type,  
+            access_token,  
+            embedder_type=self.embedder_type,  
+            model_override=self.embed_model,   # <-- ADD THIS  
+            excluded_dirs=excluded_dirs,  
+            excluded_files=excluded_files,  
+            included_dirs=included_dirs,  
+            included_files=included_files  
         )
         logger.info(f"Loaded {len(self.transformed_docs)} documents for retrieval")
 

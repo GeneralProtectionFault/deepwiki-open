@@ -43,6 +43,8 @@ interface ModelSelectionModalProps {
   authCode?: string;
   setAuthCode?: (code: string) => void;
   isAuthLoading?: boolean;
+  embedModel?: string;  
+  setEmbedModel?: (value: string) => void;
 }
 
 export default function ModelSelectionModal({
@@ -75,6 +77,8 @@ export default function ModelSelectionModal({
   showWikiType = true,
   showTokenInput = false,
   repositoryType = 'github',
+  embedModel = '',  
+  setEmbedModel
 }: ModelSelectionModalProps) {
   const { messages: t } = useLanguage();
 
@@ -88,6 +92,7 @@ export default function ModelSelectionModal({
   const [localExcludedFiles, setLocalExcludedFiles] = useState(excludedFiles);
   const [localIncludedDirs, setLocalIncludedDirs] = useState(includedDirs);
   const [localIncludedFiles, setLocalIncludedFiles] = useState(includedFiles);
+  const [localEmbedModel, setLocalEmbedModel] = useState(embedModel);
   
   // Token input state
   const [localAccessToken, setLocalAccessToken] = useState('');
@@ -109,8 +114,9 @@ export default function ModelSelectionModal({
       setLocalSelectedPlatform(repositoryType);
       setLocalAccessToken('');
       setShowTokenSection(showTokenInput);
+      setLocalEmbedModel(embedModel);
     }
-  }, [isOpen, provider, model, isCustomModel, customModel, isComprehensiveView, excludedDirs, excludedFiles, includedDirs, includedFiles, repositoryType, showTokenInput]);
+  }, [isOpen, provider, model, isCustomModel, customModel, isComprehensiveView, excludedDirs, excludedFiles, includedDirs, includedFiles, repositoryType, showTokenInput, embedModel]);
 
   // Handler for applying changes
   const handleApply = () => {
@@ -123,6 +129,7 @@ export default function ModelSelectionModal({
     if (setExcludedFiles) setExcludedFiles(localExcludedFiles);
     if (setIncludedDirs) setIncludedDirs(localIncludedDirs);
     if (setIncludedFiles) setIncludedFiles(localIncludedFiles);
+    if (setEmbedModel) setEmbedModel(localEmbedModel);
     
     // Pass token to onApply if needed
     if (showTokenInput) {
@@ -187,6 +194,8 @@ export default function ModelSelectionModal({
               setIncludedDirs={showFileFilters ? (value: string) => setLocalIncludedDirs(value) : undefined}
               includedFiles={localIncludedFiles}
               setIncludedFiles={showFileFilters ? (value: string) => setLocalIncludedFiles(value) : undefined}
+              embedModel={localEmbedModel}  
+              setEmbedModel={setLocalEmbedModel}
             />
 
             {/* Token Input Section for refresh */}

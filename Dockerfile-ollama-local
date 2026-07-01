@@ -73,20 +73,40 @@ COPY --from=ollama_base /usr/bin/ollama /usr/local/bin/
 
 EXPOSE ${PORT:-8001} 3000
 
-RUN cat > /app/start.sh << 'EOF'
-#!/bin/bash
-ollama serve > /dev/null 2>&1 &
-sleep 10
-ollama pull nomic-embed-text
-ollama pull qwen3.6:35b
+RUN cat > /app/start.sh << 'EOF'  
+#!/bin/bash  
+set -e  
+  
+echo "[deepwiki] Starting Ollama..."  
+ollama serve &  
+OLLAMA_PID=$!  
+  
+# Wait for Ollama to be ready instead of blind sleep  
+echo "[deepwiki] Waiting for Ollama to be ready..."  
+until curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; do  
+    echo "[deepwiki]   ...still waiting"  
+    sleep 2  
+done  
+echo "[deepwiki] Ollama is ready."  
+  
+echo "[deepwiki] Pulling embedding model..."  
+ollama pull nomic-embed-text  
+  
+echo "[deepwiki] Pulling generation model..."  
+ollama pull qwen3.6:35b  
+  
+echo "[deepwiki] Starting API server on port ${PORT:-8001}..."  
+python -m api.main --port ${PORT:-8001} &  
+  
+echo "[deepwiki] Starting web server on port 3000..."  
+PORT=3000 HOSTNAME=0.0.0.0 node server.js &  
+  
+echo "[deepwiki] All services started. Waiting..."  
+wait -n  
+exit $?  
+EOF
 
-if [ -f .env ]; then
-  export $(grep -v "^#" .env | xargs -r)
-fi
-
-if [ -z "$OPENAI_API_KEY" ] || [ -z "$GOOGLE_API_KEY" ]; then
-  echo "Warning: OPENAI_API_KEY and/or GOOGLE_API_KEY not set."
-fi
+echo "Starting DeepWiki with Ollama embeddings (DEEPWIKI_EMBEDDER_TYPE=ollama)"
 
 python -m api.main --port ${PORT:-8001} &
 PORT=3000 HOSTNAME=0.0.0.0 node server.js &
@@ -101,5 +121,6 @@ RUN touch .env
 ENV PORT=8001
 ENV NODE_ENV=production
 ENV SERVER_BASE_URL=http://localhost:${PORT:-8001}
+ENV DEEPWIKI_EMBEDDER_TYPE=ollama
 
 CMD ["/app/start.sh"]

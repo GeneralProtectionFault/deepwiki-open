@@ -106,7 +106,8 @@ const addTokensToRequestBody = (
   excludedDirs?: string,
   excludedFiles?: string,
   includedDirs?: string,
-  includedFiles?: string
+  includedFiles?: string,
+  embedModel?: string  
 ): void => {
   if (token !== '') {
     requestBody.token = token;
@@ -115,6 +116,9 @@ const addTokensToRequestBody = (
   // Add provider-based model selection parameters
   requestBody.provider = provider;
   requestBody.model = model;
+  if (embedModel) {  
+    requestBody.embed_model = embedModel;  
+  }
   if (isCustomModel && customModel) {
     requestBody.custom_model = customModel;
   }
@@ -191,6 +195,7 @@ export default function RepoWikiPage() {
   const modelParam = searchParams.get('model') || '';
   const isCustomModelParam = searchParams.get('is_custom_model') === 'true';
   const customModelParam = searchParams.get('custom_model') || '';
+  const embedModelParam = searchParams.get('embed_model') || '';
   const language = searchParams.get('language') || 'en';
   const repoHost = (() => {
     if (!repoUrl) return '';
@@ -245,6 +250,7 @@ export default function RepoWikiPage() {
   const [selectedModelState, setSelectedModelState] = useState(modelParam);
   const [isCustomSelectedModelState, setIsCustomSelectedModelState] = useState(isCustomModelParam);
   const [customSelectedModelState, setCustomSelectedModelState] = useState(customModelParam);
+  const [selectedEmbedModelState, setSelectedEmbedModelState] = useState(embedModelParam);
   const [showModelOptions, setShowModelOptions] = useState(false); // Controls whether to show model options
   const excludedDirs = searchParams.get('excluded_dirs') || '';
   const excludedFiles = searchParams.get('excluded_files') || '';
@@ -834,7 +840,7 @@ IMPORTANT:
       };
 
       // Add tokens if available
-      addTokensToRequestBody(requestBody, currentToken, effectiveRepoInfo.type, selectedProviderState, selectedModelState, isCustomSelectedModelState, customSelectedModelState, language, modelExcludedDirs, modelExcludedFiles, modelIncludedDirs, modelIncludedFiles);
+        addTokensToRequestBody(requestBody, currentToken, effectiveRepoInfo.type, selectedProviderState, selectedModelState, isCustomSelectedModelState, customSelectedModelState, language, modelExcludedDirs, modelExcludedFiles, modelIncludedDirs, modelIncludedFiles, selectedEmbedModelState);
 
       // Use WebSocket for communication
       let responseText = '';
@@ -1684,7 +1690,7 @@ IMPORTANT:
     // For now, we rely on the standard loadData flow initiated by resetting effectRan and dependencies.
     // This will re-trigger the main data loading useEffect.
     // No direct call to fetchRepositoryStructure here, let the useEffect handle it based on effectRan.current = false.
-  }, [effectiveRepoInfo, language, messages.loading, activeContentRequests, selectedProviderState, selectedModelState, isCustomSelectedModelState, customSelectedModelState, modelExcludedDirs, modelExcludedFiles, isComprehensiveView, authCode, authRequired]);
+  }, [effectiveRepoInfo, language, messages.loading, activeContentRequests, selectedProviderState, selectedModelState, isCustomSelectedModelState, customSelectedModelState, modelExcludedDirs, modelExcludedFiles, isComprehensiveView, authCode, authRequired, selectedEmbedModelState]);
 
   // Start wiki generation when component mounts
   useEffect(() => {
@@ -2274,6 +2280,8 @@ IMPORTANT:
         authCode={authCode}
         setAuthCode={setAuthCode}
         isAuthLoading={isAuthLoading}
+        embedModel={selectedEmbedModelState}  
+        setEmbedModel={setSelectedEmbedModelState}
       />
     </div>
   );

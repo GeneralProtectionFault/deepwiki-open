@@ -62,6 +62,8 @@ class ChatCompletionRequest(BaseModel):
     included_dirs: Optional[str] = Field(None, description="Comma-separated list of directories to include exclusively")
     included_files: Optional[str] = Field(None, description="Comma-separated list of file patterns to include exclusively")
 
+    embed_model: Optional[str] = Field(None, description="Ollama embedding model override (only used when provider=ollama)")
+
 async def handle_websocket_chat(websocket: WebSocket):
     """
     Handle WebSocket connection for chat completions.
@@ -87,7 +89,7 @@ async def handle_websocket_chat(websocket: WebSocket):
 
         # Create a new RAG instance for this request
         try:
-            request_rag = RAG(provider=request.provider, model=request.model)
+            request_rag = RAG(provider=request.provider, model=request.model, embed_model=request.embed_model)
 
             # Extract custom file filter parameters if provided
             excluded_dirs = None

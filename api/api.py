@@ -224,6 +224,26 @@ async def get_model_config():
             defaultProvider="google"
         )
 
+@app.get("/api/ollama/models")  
+async def get_ollama_models():  
+    """Get list of models available in the local Ollama instance."""  
+    import requests as req  
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")  
+    if ollama_host.endswith('/api'):  
+        ollama_host = ollama_host[:-4]  
+    try:  
+        response = req.get(f"{ollama_host}/api/tags", timeout=5)  
+        if response.status_code == 200:  
+            models_data = response.json()  
+            models = [m.get('name', '') for m in models_data.get('models', []) if m.get('name')]  
+            return {"models": models}  
+        else:  
+            raise HTTPException(status_code=502, detail=f"Ollama returned status {response.status_code}")  
+    except HTTPException:  
+        raise  
+    except Exception as e:  
+        raise HTTPException(status_code=503, detail=f"Could not connect to Ollama: {str(e)}")
+
 @app.post("/export/wiki")
 async def export_wiki(request: WikiExportRequest):
     """

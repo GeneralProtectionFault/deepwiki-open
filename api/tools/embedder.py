@@ -3,7 +3,7 @@ import adalflow as adal
 from api.config import configs, get_embedder_type
 
 
-def get_embedder(is_local_ollama: bool = False, use_google_embedder: bool = False, embedder_type: str = None) -> adal.Embedder:
+def get_embedder(is_local_ollama: bool = False, use_google_embedder: bool = False, embedder_type: str = None, model_override: str = None) -> adal.Embedder:
     """Get embedder based on configuration or parameters.
     
     Args:
@@ -39,6 +39,12 @@ def get_embedder(is_local_ollama: bool = False, use_google_embedder: bool = Fals
             embedder_config = configs["embedder_google"]
         else:
             embedder_config = configs["embedder"]
+
+     # Apply model override if specified  
+    if model_override and embedder_config:  
+        import copy  
+        embedder_config = copy.deepcopy(embedder_config)  
+        embedder_config.setdefault("model_kwargs", {})["model"] = model_override
 
     # --- Initialize Embedder ---
     model_client_class = embedder_config["model_client"]

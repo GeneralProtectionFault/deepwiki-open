@@ -98,6 +98,7 @@ export default function Home() {
           setExcludedFiles(config.excludedFiles || '');
           setIncludedDirs(config.includedDirs || '');
           setIncludedFiles(config.includedFiles || '');
+          setEmbedModel(config.embedModel || '');
         }
       }
     } catch (error) {
@@ -126,6 +127,7 @@ export default function Home() {
   const [model, setModel] = useState<string>('');
   const [isCustomModel, setIsCustomModel] = useState<boolean>(false);
   const [customModel, setCustomModel] = useState<string>('');
+  const [embedModel, setEmbedModel] = useState<string>('');
 
   // Wiki type state - default to comprehensive view
   const [isComprehensiveView, setIsComprehensiveView] = useState<boolean>(true);
@@ -317,6 +319,7 @@ export default function Home() {
           model,
           isCustomModel,
           customModel,
+          embedModel, 
           selectedPlatform,
           excludedDirs,
           excludedFiles,
@@ -374,6 +377,9 @@ export default function Home() {
     }
     if (includedFiles) {
       params.append('included_files', includedFiles);
+    }
+    if (embedModel) {  
+      params.append('embed_model', embedModel);  
     }
 
     // Add language parameter
@@ -476,6 +482,8 @@ export default function Home() {
             authCode={authCode}
             setAuthCode={setAuthCode}
             isAuthLoading={isAuthLoading}
+            embedModel={embedModel}  
+            setEmbedModel={setEmbedModel}
           />
 
         </div>

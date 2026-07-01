@@ -43,12 +43,12 @@ if is_development:
 
 import uvicorn
 
-# Check for required environment variables
-required_env_vars = ['GOOGLE_API_KEY', 'OPENAI_API_KEY']
-missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
-if missing_vars:
-    logger.warning(f"Missing environment variables: {', '.join(missing_vars)}")
-    logger.warning("Some functionality may not work correctly without these variables.")
+from api.config import EMBEDDER_TYPE  
+if EMBEDDER_TYPE == 'openai' and not os.environ.get('OPENAI_API_KEY'):  
+    logger.warning("OPENAI_API_KEY is not set but DEEPWIKI_EMBEDDER_TYPE=openai (default). "  
+                   "Embeddings will fail. Set DEEPWIKI_EMBEDDER_TYPE=ollama to use local embeddings.")  
+if not os.environ.get('GOOGLE_API_KEY'):  
+    logger.info("GOOGLE_API_KEY not set - Google Gemini models will not be available.")
 
 # Configure Google Generative AI
 import google.generativeai as genai

@@ -58,6 +58,9 @@ interface ConfigurationModalProps {
   authCode?: string;
   setAuthCode?: (code: string) => void;
   isAuthLoading?: boolean;
+
+  embedModel?: string;  
+  setEmbedModel?: (value: string) => void;
 }
 
 export default function ConfigurationModal({
@@ -94,7 +97,9 @@ export default function ConfigurationModal({
   authRequired,
   authCode,
   setAuthCode,
-  isAuthLoading
+  isAuthLoading,
+  embedModel = '',  
+  setEmbedModel,
 }: ConfigurationModalProps) {
   const { messages: t } = useLanguage();
 
@@ -228,6 +233,8 @@ export default function ConfigurationModal({
                 setIncludedDirs={setIncludedDirs}
                 includedFiles={includedFiles}
                 setIncludedFiles={setIncludedFiles}
+                embedModel={embedModel}  
+                setEmbedModel={setEmbedModel}
               />
             </div>
 

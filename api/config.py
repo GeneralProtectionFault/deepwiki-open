@@ -166,22 +166,32 @@ def load_embedder_config():
 
     return embedder_config
 
-def get_embedder_config():
-    """
-    Get the current embedder configuration based on DEEPWIKI_EMBEDDER_TYPE.
-
-    Returns:
-        dict: The embedder configuration with model_client resolved
-    """
-    embedder_type = EMBEDDER_TYPE
-    if embedder_type == 'bedrock' and 'embedder_bedrock' in configs:
-        return configs.get("embedder_bedrock", {})
-    elif embedder_type == 'google' and 'embedder_google' in configs:
-        return configs.get("embedder_google", {})
-    elif embedder_type == 'ollama' and 'embedder_ollama' in configs:
-        return configs.get("embedder_ollama", {})
-    else:
-        return configs.get("embedder", {})
+def get_embedder_config(model_override: str = None):  
+    """  
+    Get the current embedder configuration based on DEEPWIKI_EMBEDDER_TYPE.  
+  
+    Args:  
+        model_override: Optional model name to override the one in the config file.  
+  
+    Returns:  
+        dict: The embedder configuration with model_client resolved  
+    """  
+    import copy  
+    embedder_type = EMBEDDER_TYPE  
+    if embedder_type == 'bedrock' and 'embedder_bedrock' in configs:  
+        config = configs.get("embedder_bedrock", {})  
+    elif embedder_type == 'google' and 'embedder_google' in configs:  
+        config = configs.get("embedder_google", {})  
+    elif embedder_type == 'ollama' and 'embedder_ollama' in configs:  
+        config = configs.get("embedder_ollama", {})  
+    else:  
+        config = configs.get("embedder", {})  
+  
+    if model_override and config:  
+        config = copy.deepcopy(config)  
+        config.setdefault("model_kwargs", {})["model"] = model_override  
+  
+    return config
 
 def is_ollama_embedder():
     """

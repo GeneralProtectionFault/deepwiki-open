@@ -41,6 +41,9 @@ interface ModelSelectorProps {
   setIncludedDirs?: (value: string) => void;
   includedFiles?: string;
   setIncludedFiles?: (value: string) => void;
+
+  embedModel?: string;  
+  setEmbedModel?: (value: string) => void;
 }
 
 export default function UserSelector({
@@ -62,7 +65,9 @@ export default function UserSelector({
   includedDirs = '',
   setIncludedDirs,
   includedFiles = '',
-  setIncludedFiles
+  setIncludedFiles,
+  embedModel = '',  
+  setEmbedModel
 }: ModelSelectorProps) {
   // State to manage the visibility of the filters modal and filter section
   const [isFilterSectionOpen, setIsFilterSectionOpen] = useState(false);
@@ -78,6 +83,9 @@ export default function UserSelector({
   // State for viewing default values
   const [showDefaultDirs, setShowDefaultDirs] = useState(false);
   const [showDefaultFiles, setShowDefaultFiles] = useState(false);
+
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);  
+  const [isLoadingOllamaModels, setIsLoadingOllamaModels] = useState(false);
 
   // Fetch model configurations from the backend
   useEffect(() => {
@@ -115,6 +123,31 @@ export default function UserSelector({
 
     fetchModelConfig();
   }, [provider, setModel, setProvider]);
+
+    useEffect(() => {  
+    if (provider !== 'ollama') return;  
+    const fetchOllamaModels = async () => {  
+      setIsLoadingOllamaModels(true);  
+      try {  
+        const response = await fetch('/api/ollama/models');  
+        if (response.ok) {  
+          const data = await response.json();  
+          const models: string[] = data.models || [];  
+          setOllamaModels(models);  
+          if (!embedModel && models.length > 0) {  
+            const defaultEmbed =  
+              models.find((m) => m.startsWith('nomic-embed-text')) ?? models[0];  
+            setEmbedModel?.(defaultEmbed);  
+          }  
+        }  
+      } catch (err) {  
+        console.error('Failed to fetch Ollama models for embedding:', err);  
+      } finally {  
+        setIsLoadingOllamaModels(false);  
+      }  
+    };  
+    fetchOllamaModels();  
+  }, [provider]);
 
   // Handler for changing provider
   const handleProviderChange = (newProvider: string) => {
@@ -330,6 +363,32 @@ next.config.js
             </select>
           )}
         </div>
+
+         {/* Embedding Model Selection - only shown for Ollama */}  
+        {provider === 'ollama' && (  
+          <div>  
+            <label htmlFor="embed-model-dropdown" className="block text-xs font-medium text-[var(--foreground)] mb-1.5">  
+              Embedding Model  
+            </label>  
+            {isLoadingOllamaModels ? (  
+              <div className="text-sm text-[var(--muted)]">Loading Ollama models...</div>  
+            ) : (  
+              <select  
+                id="embed-model-dropdown"  
+                value={embedModel || ''}  
+                onChange={(e) => setEmbedModel?.(e.target.value)}  
+                className="input-japanese block w-full px-2.5 py-1.5 text-sm rounded-md bg-transparent text-[var(--foreground)] focus:outline-none focus:border-[var(--accent-primary)]"  
+              >  
+                {ollamaModels.length === 0 && (  
+                  <option value="">No models found</option>  
+                )}  
+                {ollamaModels.map((m) => (  
+                  <option key={m} value={m}>{m}</option>  
+                ))}  
+              </select>  
+            )}  
+          </div>  
+        )}
 
         {/* Custom model toggle - only when provider supports it */}
         {modelConfig?.providers.find((p: Provider) => p.id === provider)?.supportsCustomModel && (

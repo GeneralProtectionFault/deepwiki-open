@@ -387,7 +387,7 @@ def read_all_documents(path: str, embedder_type: str = None, is_ollama_embedder:
     logger.info(f"Found {len(documents)} documents")
     return documents
 
-def prepare_data_pipeline(embedder_type: str = None, is_ollama_embedder: bool = None):
+def prepare_data_pipeline(embedder_type: str = None, is_ollama_embedder: bool = None, model_override: str = None):
     """
     Creates and returns the data transformation pipeline.
 
@@ -413,7 +413,7 @@ def prepare_data_pipeline(embedder_type: str = None, is_ollama_embedder: bool = 
     splitter = TextSplitter(**configs["text_splitter"])
     embedder_config = get_embedder_config()
 
-    embedder = get_embedder(embedder_type=embedder_type)
+    embedder = get_embedder(embedder_type=embedder_type, model_override=model_override)
 
     # Choose appropriate processor based on embedder type
     if embedder_type == 'ollama':
@@ -431,8 +431,8 @@ def prepare_data_pipeline(embedder_type: str = None, is_ollama_embedder: bool = 
     )  # sequential will chain together splitter and embedder
     return data_transformer
 
-def transform_documents_and_save_to_db(
-    documents: List[Document], db_path: str, embedder_type: str = None, is_ollama_embedder: bool = None
+def transform_documents_and_save_to_db(  
+    documents: List[Document], db_path: str, embedder_type: str = None, is_ollama_embedder: bool = None, model_override: str = None  
 ) -> LocalDB:
     """
     Transforms a list of documents and saves them to a local database.
@@ -446,7 +446,7 @@ def transform_documents_and_save_to_db(
                                            If None, will be determined from configuration.
     """
     # Get the data transformer
-    data_transformer = prepare_data_pipeline(embedder_type, is_ollama_embedder)
+    data_transformer = prepare_data_pipeline(embedder_type, is_ollama_embedder, model_override=model_override)
 
     # Save the documents to a local database
     db = LocalDB()
@@ -727,10 +727,11 @@ class DatabaseManager:
         self.repo_url_or_path = None
         self.repo_paths = None
 
-    def prepare_database(self, repo_url_or_path: str, repo_type: str = None, access_token: str = None,
-                         embedder_type: str = None, is_ollama_embedder: bool = None,
-                         excluded_dirs: List[str] = None, excluded_files: List[str] = None,
-                         included_dirs: List[str] = None, included_files: List[str] = None) -> List[Document]:
+    def prepare_database(self, repo_url_or_path: str, repo_type: str = None, access_token: str = None,  
+                         embedder_type: str = None, is_ollama_embedder: bool = None,  
+                         excluded_dirs: List[str] = None, excluded_files: List[str] = None,  
+                         included_dirs: List[str] = None, included_files: List[str] = None,  
+                         model_override: str = None) -> List[Document]:
         """
         Create a new database from the repository.
 
@@ -756,8 +757,9 @@ class DatabaseManager:
         
         self.reset_database()
         self._create_repo(repo_url_or_path, repo_type, access_token)
-        return self.prepare_db_index(embedder_type=embedder_type, excluded_dirs=excluded_dirs, excluded_files=excluded_files,
-                                   included_dirs=included_dirs, included_files=included_files)
+        return self.prepare_db_index(embedder_type=embedder_type, model_override=model_override,  
+                                     excluded_dirs=excluded_dirs, excluded_files=excluded_files,  
+                                     included_dirs=included_dirs, included_files=included_files)
 
     def reset_database(self):
         """
@@ -836,9 +838,10 @@ class DatabaseManager:
             logger.error(f"Failed to create repository structure: {e}")
             raise
 
-    def prepare_db_index(self, embedder_type: str = None, is_ollama_embedder: bool = None, 
-                        excluded_dirs: List[str] = None, excluded_files: List[str] = None,
-                        included_dirs: List[str] = None, included_files: List[str] = None) -> List[Document]:
+    def prepare_db_index(self, embedder_type: str = None, is_ollama_embedder: bool = None,  
+                        excluded_dirs: List[str] = None, excluded_files: List[str] = None,  
+                        included_dirs: List[str] = None, included_files: List[str] = None,  
+                        model_override: str = None) -> List[Document]:
         """
         Prepare the indexed database for the repository.
 
@@ -912,8 +915,8 @@ class DatabaseManager:
             included_dirs=included_dirs,
             included_files=included_files
         )
-        self.db = transform_documents_and_save_to_db(
-            documents, self.repo_paths["save_db_file"], embedder_type=embedder_type
+        self.db = transform_documents_and_save_to_db(  
+            documents, self.repo_paths["save_db_file"], embedder_type=embedder_type, model_override=model_override  
         )
         logger.info(f"Total documents: {len(documents)}")
         transformed_docs = self.db.get_transformed_data(key="split_and_embed")
