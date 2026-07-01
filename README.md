@@ -1,7 +1,7 @@
 # DeepWiki-Open
 
 ![DeepWiki Banner](screenshots/Deepwiki.png)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/username/repository)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/GeneralProtectionFault/deepwiki-open)
 
 **DeepWiki** is my own implementation attempt of DeepWiki, automatically creates beautiful, interactive wikis for any GitHub, GitLab, or BitBucket repository! Just enter a repo name, and DeepWiki will:
 
