@@ -69,47 +69,37 @@ COPY api/ ./api/
 COPY --from=node_builder /app/public ./public
 COPY --from=node_builder /app/.next/standalone ./
 COPY --from=node_builder /app/.next/static ./.next/static
+
+# COPY --from=ollama_base /usr/bin/ollama /usr/local/bin/
 COPY --from=ollama_base /usr/bin/ollama /usr/local/bin/
+COPY --from=ollama_base /usr/lib/ollama /usr/local/lib/ollama
+RUN ln -sf /usr/local/lib/ollama/llama-server /usr/local/bin/llama-server
+
 
 EXPOSE ${PORT:-8001} 3000
 
-RUN cat > /app/start.sh << 'EOF'  
-#!/bin/bash  
-set -e  
-  
-echo "[deepwiki] Starting Ollama..."  
-ollama serve &  
-OLLAMA_PID=$!  
-  
-# Wait for Ollama to be ready instead of blind sleep  
-echo "[deepwiki] Waiting for Ollama to be ready..."  
-until curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; do  
-    echo "[deepwiki]   ...still waiting"  
-    sleep 2  
-done  
-echo "[deepwiki] Ollama is ready."  
-  
-echo "[deepwiki] Pulling embedding model..."  
-ollama pull nomic-embed-text  
-  
-echo "[deepwiki] Pulling generation model..."  
-ollama pull qwen3.6:35b  
-  
-echo "[deepwiki] Starting API server on port ${PORT:-8001}..."  
-python -m api.main --port ${PORT:-8001} &  
-  
-echo "[deepwiki] Starting web server on port 3000..."  
-PORT=3000 HOSTNAME=0.0.0.0 node server.js &  
-  
-echo "[deepwiki] All services started. Waiting..."  
-wait -n  
-exit $?  
-EOF
+RUN cat > /app/start.sh << 'EOF'
+#!/bin/bash
+set -e
 
-echo "Starting DeepWiki with Ollama embeddings (DEEPWIKI_EMBEDDER_TYPE=ollama)"
+echo "[deepwiki] Starting Ollama..."
+ollama serve &
+OLLAMA_PID=$!
 
+echo "[deepwiki] Waiting for Ollama to be ready..."
+until curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; do
+    echo "[deepwiki]   ...still waiting"
+    sleep 2
+done
+echo "[deepwiki] Ollama is ready."
+
+echo "[deepwiki] Starting API server on port ${PORT:-8001}..."
 python -m api.main --port ${PORT:-8001} &
+
+echo "[deepwiki] Starting web server on port 3000..."
 PORT=3000 HOSTNAME=0.0.0.0 node server.js &
+
+echo "[deepwiki] All services started. Waiting..."
 wait -n
 exit $?
 EOF
@@ -120,7 +110,7 @@ RUN touch .env
 
 ENV PORT=8001
 ENV NODE_ENV=production
-ENV SERVER_BASE_URL=http://localhost:${PORT:-8001}
+ENV SERVER_BASE_URL=http://localhost:8001
 ENV DEEPWIKI_EMBEDDER_TYPE=ollama
 
 CMD ["/app/start.sh"]

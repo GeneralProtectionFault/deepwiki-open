@@ -107,7 +107,7 @@ const addTokensToRequestBody = (
   excludedFiles?: string,
   includedDirs?: string,
   includedFiles?: string,
-  embedModel?: string  
+  embedModel?: string
 ): void => {
   if (token !== '') {
     requestBody.token = token;
@@ -116,8 +116,8 @@ const addTokensToRequestBody = (
   // Add provider-based model selection parameters
   requestBody.provider = provider;
   requestBody.model = model;
-  if (embedModel) {  
-    requestBody.embed_model = embedModel;  
+  if (embedModel) {
+    requestBody.embed_model = embedModel;
   }
   if (isCustomModel && customModel) {
     requestBody.custom_model = customModel;
@@ -304,7 +304,7 @@ export default function RepoWikiPage() {
     try {
       const url = new URL(repoUrl);
       const hostname = url.hostname;
-      
+
       if (hostname === 'github.com' || hostname.includes('github')) {
         // GitHub URL format: https://github.com/owner/repo/blob/branch/path
         return `${repoUrl}/blob/${defaultBranch}/${filePath}`;
@@ -519,7 +519,7 @@ IMPORTANT: Generate the content in ${language === 'en' ? 'English' :
             language === 'zh-tw' ? 'Traditional Chinese (繁體中文)' :
             language === 'es' ? 'Spanish (Español)' :
             language === 'kr' ? 'Korean (한국어)' :
-            language === 'vi' ? 'Vietnamese (Tiếng Việt)' : 
+            language === 'vi' ? 'Vietnamese (Tiếng Việt)' :
             language === "pt-br" ? "Brazilian Portuguese (Português Brasileiro)" :
             language === "fr" ? "Français (French)" :
             language === "ru" ? "Русский (Russian)" :
@@ -543,8 +543,7 @@ Remember:
         };
 
         // Add tokens if available
-        addTokensToRequestBody(requestBody, currentToken, effectiveRepoInfo.type, selectedProviderState, selectedModelState, isCustomSelectedModelState, customSelectedModelState, language, modelExcludedDirs, modelExcludedFiles, modelIncludedDirs, modelIncludedFiles);
-
+        addTokensToRequestBody(requestBody, currentToken, effectiveRepoInfo.type, selectedProviderState, selectedModelState, isCustomSelectedModelState, customSelectedModelState, language, modelExcludedDirs, modelExcludedFiles, modelIncludedDirs, modelIncludedFiles, selectedEmbedModelState);
         // Use WebSocket for communication
         let content = '';
 
@@ -840,7 +839,7 @@ IMPORTANT:
       };
 
       // Add tokens if available
-        addTokensToRequestBody(requestBody, currentToken, effectiveRepoInfo.type, selectedProviderState, selectedModelState, isCustomSelectedModelState, customSelectedModelState, language, modelExcludedDirs, modelExcludedFiles, modelIncludedDirs, modelIncludedFiles, selectedEmbedModelState);
+      addTokensToRequestBody(requestBody, currentToken, effectiveRepoInfo.type, selectedProviderState, selectedModelState, isCustomSelectedModelState, customSelectedModelState, language, modelExcludedDirs, modelExcludedFiles, modelIncludedDirs, modelIncludedFiles, selectedEmbedModelState);
 
       // Use WebSocket for communication
       let responseText = '';
@@ -948,9 +947,28 @@ IMPORTANT:
         // Clean up markdown delimiters
       responseText = responseText.replace(/^```(?:xml)?\s*/i, '').replace(/```\s*$/i, '');
 
+      if (responseText.includes('Error preparing retriever: Environment variable OPENAI_API_KEY must be set')) {
+        setEmbeddingError(true);
+        throw new Error('OPENAI_API_KEY environment variable is not set. Please configure your OpenAI API key.');
+      }
+
+      if (responseText.includes('Ollama model') && responseText.includes('not found')) {
+        setEmbeddingError(true);
+        throw new Error('The specified Ollama embedding model was not found. Please ensure the model is installed locally or select a different embedding model in the configuration.');
+      }
+
+      if (responseText.includes('llama-server binary not found')) {
+        throw new Error('Ollama is missing the llama-server binary in this container. Rebuild the Docker image with the full Ollama runtime copied in (Dockerfile-ollama-local).');
+      }
+
+      if (responseText.includes('Error preparing retriever') || responseText.trim().startsWith('Error') || responseText.trim().startsWith('\nError')) {
+        throw new Error(`Backend error: ${responseText.slice(0, 500)}`);
+      }
+
       // Extract wiki structure from response
       const xmlMatch = responseText.match(/<wiki_structure>[\s\S]*?<\/wiki_structure>/m);
       if (!xmlMatch) {
+        console.error('Raw backend response (no XML found):', responseText);
         throw new Error('No valid XML found in response');
       }
 
@@ -1224,16 +1242,16 @@ IMPORTANT:
           if (!repoUrl) {
             return 'https://api.github.com'; // Default to public GitHub
           }
-          
+
           try {
             const url = new URL(repoUrl);
             const hostname = url.hostname;
-            
+
             // If it's the public GitHub, use the standard API URL
             if (hostname === 'github.com') {
               return 'https://api.github.com';
             }
-            
+
             // For GitHub Enterprise, use the enterprise API URL format
             // GitHub Enterprise API URL format: https://github.company.com/api/v3
             return `${url.protocol}//${hostname}/api/v3`;
@@ -1249,7 +1267,7 @@ IMPORTANT:
           const repoInfoResponse = await fetch(`${githubApiBaseUrl}/repos/${owner}/${repo}`, {
             headers: createGithubHeaders(currentToken)
           });
-          
+
           if (repoInfoResponse.ok) {
             const repoData = await repoInfoResponse.json();
             defaultBranchLocal = repoData.default_branch;
@@ -1262,7 +1280,7 @@ IMPORTANT:
         }
 
         // Create list of branches to try, prioritizing the actual default branch
-        const branchesToTry = defaultBranchLocal 
+        const branchesToTry = defaultBranchLocal
           ? [defaultBranchLocal, 'main', 'master'].filter((branch, index, arr) => arr.indexOf(branch) === index)
           : ['main', 'master'];
 
@@ -1359,7 +1377,7 @@ IMPORTANT:
           // Step 2: Paginate to fetch full file tree
           let page = 1;
           let morePages = true;
-          
+
           while (morePages) {
             const apiUrl = `${projectInfoUrl}/repository/tree?recursive=true&per_page=100&page=${page}`;
             const response = await fetch(apiUrl, { headers });
@@ -1850,7 +1868,7 @@ IMPORTANT:
               setGeneratedPages(cachedData.generated_pages);
               setCurrentPageId(cachedStructure.pages.length > 0 ? cachedStructure.pages[0].id : undefined);
               setIsLoading(false);
-              setEmbeddingError(false); 
+              setEmbeddingError(false);
               setLoadingMessage(undefined);
               cacheLoadedSuccessfully.current = true;
               return; // Exit if cache is successfully loaded
@@ -2280,7 +2298,7 @@ IMPORTANT:
         authCode={authCode}
         setAuthCode={setAuthCode}
         isAuthLoading={isAuthLoading}
-        embedModel={selectedEmbedModelState}  
+        embedModel={selectedEmbedModelState}
         setEmbedModel={setSelectedEmbedModelState}
       />
     </div>

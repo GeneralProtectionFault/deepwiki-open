@@ -20,6 +20,7 @@ COPY public/ ./public/
 # Increase Node.js memory limit for build and disable telemetry
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV SERVER_BASE_URL=http://localhost:8001
 RUN NODE_ENV=production npm run build
 
 FROM python:3.11-slim AS py_deps
@@ -83,29 +84,30 @@ COPY --from=node_builder /app/.next/static ./.next/static
 EXPOSE ${PORT:-8001} 3000
 
 # Create a script to run both backend and frontend
-RUN echo '#!/bin/bash\n\
-# Load environment variables from .env file if it exists\n\
-if [ -f .env ]; then\n\
-  export $(grep -v "^#" .env | xargs -r)\n\
-fi\n\
-\n\
-# Check for required environment variables\n\
-if [ -z "$OPENAI_API_KEY" ] || [ -z "$GOOGLE_API_KEY" ]; then\n\
-  echo "Warning: OPENAI_API_KEY and/or GOOGLE_API_KEY environment variables are not set."\n\
-  echo "These are required for DeepWiki to function properly."\n\
-  echo "You can provide them via a mounted .env file or as environment variables when running the container."\n\
-fi\n\
-\n\
-# Start the API server in the background with the configured port\n\
-python -m api.main --port ${PORT:-8001} &\n\
-PORT=3000 HOSTNAME=0.0.0.0 node server.js &\n\
-wait -n\n\
-exit $?' > /app/start.sh && chmod +x /app/start.sh
+RUN printf '#!/bin/bash\n' > /app/start.sh && \
+    printf '# Load environment variables from .env file if it exists\n' >> /app/start.sh && \
+    printf 'if [ -f .env ]; then\n' >> /app/start.sh && \
+    printf '  export $(grep -v "^#" .env | xargs -r)\n' >> /app/start.sh && \
+    printf 'fi\n' >> /app/start.sh && \
+    printf '\n' >> /app/start.sh && \
+    printf '# Check for required environment variables\n' >> /app/start.sh && \
+    printf 'if [ -z "$OPENAI_API_KEY" ] || [ -z "$GOOGLE_API_KEY" ]; then\n' >> /app/start.sh && \
+    printf '  echo "Warning: OPENAI_API_KEY and/or GOOGLE_API_KEY environment variables are not set."\n' >> /app/start.sh && \
+    printf '  echo "These are required for DeepWiki to function properly."\n' >> /app/start.sh && \
+    printf '  echo "You can provide them via a mounted .env file or as environment variables when running the container."\n' >> /app/start.sh && \
+    printf 'fi\n' >> /app/start.sh && \
+    printf '\n' >> /app/start.sh && \
+    printf '# Start the API server in the background with the configured port\n' >> /app/start.sh && \
+    printf 'python -m api.main --port ${PORT:-8001} &\n' >> /app/start.sh && \
+    printf 'PORT=3000 HOSTNAME=0.0.0.0 node server.js &\n' >> /app/start.sh && \
+    printf 'wait -n\n' >> /app/start.sh && \
+    printf 'exit $?\n' >> /app/start.sh && \
+    chmod +x /app/start.sh
 
 # Set environment variables
 ENV PORT=8001
 ENV NODE_ENV=production
-ENV SERVER_BASE_URL=http://localhost:${PORT:-8001}
+ENV SERVER_BASE_URL=http://localhost:8001
 
 # Create empty .env file (will be overridden if one exists at runtime)
 RUN touch .env

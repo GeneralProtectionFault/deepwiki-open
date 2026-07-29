@@ -224,24 +224,50 @@ async def get_model_config():
             defaultProvider="google"
         )
 
-@app.get("/api/ollama/models")  
-async def get_ollama_models():  
-    """Get list of models available in the local Ollama instance."""  
-    import requests as req  
-    ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")  
-    if ollama_host.endswith('/api'):  
-        ollama_host = ollama_host[:-4]  
-    try:  
-        response = req.get(f"{ollama_host}/api/tags", timeout=5)  
-        if response.status_code == 200:  
-            models_data = response.json()  
-            models = [m.get('name', '') for m in models_data.get('models', []) if m.get('name')]  
-            return {"models": models}  
-        else:  
-            raise HTTPException(status_code=502, detail=f"Ollama returned status {response.status_code}")  
-    except HTTPException:  
-        raise  
-    except Exception as e:  
+@app.get("/api/ollama/models")
+async def get_ollama_models():
+    """Get list of models available in the local Ollama instance."""
+    import requests as req
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+    if ollama_host.endswith('/api'):
+        ollama_host = ollama_host[:-4]
+    try:
+        response = req.get(f"{ollama_host}/api/tags", timeout=5)
+        if response.status_code == 200:
+            models_data = response.json()
+            models = [m.get('name', '') for m in models_data.get('models', []) if m.get('name')]
+            return {"models": models}
+        else:
+            raise HTTPException(status_code=502, detail=f"Ollama returned status {response.status_code}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Could not connect to Ollama: {str(e)}")
+
+@app.get("/api/ollama/embedding-models")
+async def get_ollama_embedding_models():
+    """Get list of models from Ollama that are likely embedding models."""
+    import requests as req
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+    if ollama_host.endswith('/api'):
+        ollama_host = ollama_host[:-4]
+    try:
+        response = req.get(f"{ollama_host}/api/tags", timeout=5)
+        if response.status_code == 200:
+            models_data = response.json()
+            all_models = [m.get('name', '') for m in models_data.get('models', []) if m.get('name')]
+            # Heuristic: common embedding model name fragments
+            embedding_keywords = ['embed', 'nomic', 'mxbai', 'snowflake', 'bge', 'gte', 'jina']
+            embedding_models = [
+                m for m in all_models
+                if any(k in m.lower() for k in embedding_keywords)
+            ]
+            return {"models": embedding_models, "all_models": all_models}
+        else:
+            raise HTTPException(status_code=502, detail=f"Ollama returned status {response.status_code}")
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=503, detail=f"Could not connect to Ollama: {str(e)}")
 
 @app.post("/export/wiki")

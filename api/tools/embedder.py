@@ -5,12 +5,12 @@ from api.config import configs, get_embedder_type
 
 def get_embedder(is_local_ollama: bool = False, use_google_embedder: bool = False, embedder_type: str = None, model_override: str = None) -> adal.Embedder:
     """Get embedder based on configuration or parameters.
-    
+
     Args:
         is_local_ollama: Legacy parameter for Ollama embedder
-        use_google_embedder: Legacy parameter for Google embedder  
+        use_google_embedder: Legacy parameter for Google embedder
         embedder_type: Direct specification of embedder type ('ollama', 'google', 'bedrock', 'openai')
-    
+
     Returns:
         adal.Embedder: Configured embedder instance
     """
@@ -40,11 +40,12 @@ def get_embedder(is_local_ollama: bool = False, use_google_embedder: bool = Fals
         else:
             embedder_config = configs["embedder"]
 
-     # Apply model override if specified  
-    if model_override and embedder_config:  
-        import copy  
-        embedder_config = copy.deepcopy(embedder_config)  
-        embedder_config.setdefault("model_kwargs", {})["model"] = model_override
+    # Apply model override if specified
+    if model_override and embedder_config:
+        new_embedder_config = dict(embedder_config)  # shallow copy; avoid deepcopying model_client (lazy-loaded class proxy)
+        new_embedder_config["model_kwargs"] = dict(embedder_config.get("model_kwargs", {}))
+        new_embedder_config["model_kwargs"]["model"] = model_override
+        embedder_config = new_embedder_config
 
     # --- Initialize Embedder ---
     model_client_class = embedder_config["model_client"]
@@ -52,12 +53,12 @@ def get_embedder(is_local_ollama: bool = False, use_google_embedder: bool = Fals
         model_client = model_client_class(**embedder_config["initialize_kwargs"])
     else:
         model_client = model_client_class()
-    
+
     # Create embedder with basic parameters
     embedder_kwargs = {"model_client": model_client, "model_kwargs": embedder_config["model_kwargs"]}
-    
+
     embedder = adal.Embedder(**embedder_kwargs)
-    
+
     # Set batch_size as an attribute if available (not a constructor parameter)
     if "batch_size" in embedder_config:
         embedder.batch_size = embedder_config["batch_size"]

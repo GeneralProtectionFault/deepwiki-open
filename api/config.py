@@ -166,31 +166,33 @@ def load_embedder_config():
 
     return embedder_config
 
-def get_embedder_config(model_override: str = None):  
-    """  
-    Get the current embedder configuration based on DEEPWIKI_EMBEDDER_TYPE.  
-  
-    Args:  
-        model_override: Optional model name to override the one in the config file.  
-  
-    Returns:  
-        dict: The embedder configuration with model_client resolved  
-    """  
-    import copy  
-    embedder_type = EMBEDDER_TYPE  
-    if embedder_type == 'bedrock' and 'embedder_bedrock' in configs:  
-        config = configs.get("embedder_bedrock", {})  
-    elif embedder_type == 'google' and 'embedder_google' in configs:  
-        config = configs.get("embedder_google", {})  
-    elif embedder_type == 'ollama' and 'embedder_ollama' in configs:  
-        config = configs.get("embedder_ollama", {})  
-    else:  
-        config = configs.get("embedder", {})  
-  
-    if model_override and config:  
-        config = copy.deepcopy(config)  
-        config.setdefault("model_kwargs", {})["model"] = model_override  
-  
+def get_embedder_config(model_override: str = None):
+    """
+    Get the current embedder configuration based on DEEPWIKI_EMBEDDER_TYPE.
+
+    Args:
+        model_override: Optional model name to override the one in the config file.
+
+    Returns:
+        dict: The embedder configuration with model_client resolved
+    """
+    import copy
+    embedder_type = EMBEDDER_TYPE
+    if embedder_type == 'bedrock' and 'embedder_bedrock' in configs:
+        config = configs.get("embedder_bedrock", {})
+    elif embedder_type == 'google' and 'embedder_google' in configs:
+        config = configs.get("embedder_google", {})
+    elif embedder_type == 'ollama' and 'embedder_ollama' in configs:
+        config = configs.get("embedder_ollama", {})
+    else:
+        config = configs.get("embedder", {})
+
+    if model_override and config:
+        new_config = dict(config)  # shallow copy; avoid deepcopying model_client (lazy-loaded class proxy)
+        new_config["model_kwargs"] = dict(config.get("model_kwargs", {}))
+        new_config["model_kwargs"]["model"] = model_override
+        config = new_config
+
     return config
 
 def is_ollama_embedder():
@@ -254,7 +256,7 @@ def is_bedrock_embedder():
 def get_embedder_type():
     """
     Get the current embedder type based on configuration.
-    
+
     Returns:
         str: 'bedrock', 'ollama', 'google', or 'openai' (default)
     """
