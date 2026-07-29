@@ -11,7 +11,10 @@
   "embedder_ollama": {
     "client_class": "OllamaClient",
     "model_kwargs": {
-      "model": "nomic-embed-text"
+      "model": "nomic-embed-text",
+      "options": {
+        "num_ctx": 8192
+      }
     }
   },
   "embedder_google": {
