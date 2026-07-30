@@ -365,6 +365,34 @@ async def get_local_repo_structure(path: str = Query(None, description="Path to 
             content={"error": f"Error processing local repository: {str(e)}"}
         )
 
+
+LOCAL_REPOS_ROOT = os.environ.get("LOCAL_REPOS_ROOT", "/app/local-repos")  
+  
+@app.get("/local_repo/list")  
+async def list_local_repos():  
+    """List folders (real dirs and symlinks) directly under LOCAL_REPOS_ROOT."""  
+    entries = []  
+    if not os.path.isdir(LOCAL_REPOS_ROOT):  
+        return {"root": LOCAL_REPOS_ROOT, "entries": entries}  
+    for name in sorted(os.listdir(LOCAL_REPOS_ROOT)):  
+        full = os.path.join(LOCAL_REPOS_ROOT, name)  
+        is_symlink = os.path.islink(full)  
+        resolved_target = None  
+        if is_symlink:  
+            try:  
+                resolved_target = os.readlink(full)  
+            except OSError:  
+                resolved_target = None  
+        entries.append({  
+            "name": name,  
+            "path": full,  
+            "is_symlink": is_symlink,  
+            "resolved_target": resolved_target,  
+            "is_valid_dir": os.path.isdir(full),  
+        })  
+    return {"root": LOCAL_REPOS_ROOT, "entries": entries}
+
+
 def generate_markdown_export(repo_url: str, pages: List[WikiPage]) -> str:
     """
     Generate Markdown export of wiki pages.

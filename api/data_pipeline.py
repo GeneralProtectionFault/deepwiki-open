@@ -819,7 +819,15 @@ class DatabaseManager:
                 else:
                     logger.info(f"Repository already exists at {save_repo_dir}. Using existing repository.")
             else:  # local path
-                repo_name = os.path.basename(repo_url_or_path)
+                local_repos_root = os.environ.get("LOCAL_REPOS_ROOT", "/app/local-repos")  
+                resolved_input = os.path.realpath(repo_url_or_path)  
+                resolved_root = os.path.realpath(local_repos_root)  
+                if os.path.commonpath([resolved_input, resolved_root]) != resolved_root:  
+                    raise ValueError(  
+                        f"Local path '{repo_url_or_path}' is not inside the allowed "  
+                        f"local repos root '{local_repos_root}'."  
+                    )  
+                repo_name = os.path.basename(repo_url_or_path.rstrip('/\\'))  
                 save_repo_dir = repo_url_or_path
 
             save_db_file = os.path.join(root_path, "databases", f"{repo_name}.pkl")

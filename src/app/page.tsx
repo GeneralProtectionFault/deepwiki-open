@@ -142,6 +142,19 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>(language);
 
+  // For pointing to local repo (volume in docker compose)
+  interface LocalRepoEntry {  
+    name: string;  
+    path: string;  
+    is_symlink: boolean;  
+    resolved_target: string | null;  
+    is_valid_dir: boolean;  
+  }
+
+  const [useLocalRepo, setUseLocalRepo] = useState(false);  
+  const [localRepoEntries, setLocalRepoEntries] = useState<LocalRepoEntry[]>([]);  
+  const [selectedLocalRepo, setSelectedLocalRepo] = useState('');
+
   // Authentication state
   const [authRequired, setAuthRequired] = useState<boolean>(false);
   const [authCode, setAuthCode] = useState<string>('');
@@ -174,6 +187,14 @@ export default function Home() {
 
     fetchAuthStatus();
   }, []);
+
+  useEffect(() => {  
+    if (!useLocalRepo) return;  
+    fetch('/local_repo/list')  
+      .then((res) => res.json())  
+      .then((data) => setLocalRepoEntries(data.entries || []))  
+      .catch((err) => console.error('Failed to load local repos:', err));  
+  }, [useLocalRepo]);
 
   // Parse repository URL/input and extract owner and repo
   const parseRepositoryInput = (input: string): {
@@ -421,15 +442,41 @@ export default function Home() {
 
           <form onSubmit={handleFormSubmit} className="flex flex-col gap-3 w-full max-w-3xl">
             {/* Repository URL input and submit button */}
+            <label className="flex items-center gap-2 text-sm text-[var(--foreground)]">  
+              <input  
+                type="checkbox"  
+                checked={useLocalRepo}  
+                onChange={(e) => setUseLocalRepo(e.target.checked)}  
+              />  
+              Local Repository  
+            </label>
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={repositoryInput}
-                  onChange={handleRepositoryInputChange}
-                  placeholder={t('form.repoPlaceholder') || "owner/repo, GitHub/GitLab/BitBucket URL, or local folder path"}
-                  className="input-japanese block w-full pl-10 pr-3 py-2.5 border-[var(--border-color)] rounded-lg bg-transparent text-[var(--foreground)] focus:outline-none focus:border-[var(--accent-primary)]"
-                />
+                {useLocalRepo ? (  
+                  <select  
+                    value={selectedLocalRepo}  
+                    onChange={(e) => {  
+                      setSelectedLocalRepo(e.target.value);  
+                      setRepositoryInput(e.target.value);  
+                    }}  
+                    className="input-japanese block w-full pl-10 pr-3 py-2.5 border-[var(--border-color)] rounded-lg bg-transparent text-[var(--foreground)] focus:outline-none focus:border-[var(--accent-primary)]"  
+                  >  
+                    <option value="">Select a local repository…</option>  
+                    {localRepoEntries.map((entry) => (  
+                      <option key={entry.path} value={entry.path} disabled={!entry.is_valid_dir}>  
+                        {entry.name}{entry.is_symlink ? ` (symlink${entry.resolved_target ? ` -> ${entry.resolved_target}` : ''})` : ''}  
+                      </option>  
+                    ))}  
+                  </select>  
+                ) : (  
+                  <input  
+                    type="text"  
+                    value={repositoryInput}  
+                    onChange={handleRepositoryInputChange}  
+                    placeholder={t('form.repoPlaceholder') || "owner/repo, GitHub/GitLab/BitBucket URL, or local folder path"}  
+                    className="input-japanese block w-full pl-10 pr-3 py-2.5 border-[var(--border-color)] rounded-lg bg-transparent text-[var(--foreground)] focus:outline-none focus:border-[var(--accent-primary)]"  
+                  />  
+                )}
                 {error && (
                   <div className="text-[var(--highlight)] text-xs mt-1">
                     {error}
