@@ -1,8 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-// The target backend server base URL, derived from environment variable or defaulted.
-// This should match the logic in your frontend's page.tsx for consistency.
-const TARGET_SERVER_BASE_URL = process.env.SERVER_BASE_URL || 'http://localhost:8001';
+import { NextRequest, NextResponse } from 'next/server';  
+import { Agent, setGlobalDispatcher } from 'undici';  
+  
+const TARGET_SERVER_BASE_URL = process.env.SERVER_BASE_URL || 'http://localhost:8001';  
+  
+const CHAT_BACKEND_TIMEOUT_MS = process.env.CHAT_BACKEND_TIMEOUT_MS  
+  ? parseInt(process.env.CHAT_BACKEND_TIMEOUT_MS, 10)  
+  : 30 * 60 * 1000; // default: 30 minutes  
+  
+setGlobalDispatcher(new Agent({  
+  bodyTimeout: CHAT_BACKEND_TIMEOUT_MS,  
+  headersTimeout: CHAT_BACKEND_TIMEOUT_MS,  
+}));
 
 // This is a fallback HTTP implementation that will be used if WebSockets are not available
 // or if there's an error with the WebSocket connection

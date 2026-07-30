@@ -137,7 +137,14 @@
             "top_p": 0.8,
             "num_ctx": 32000
           }
-        }
+        },
+        "qwen3.6:35b": {  
+        "options": {  
+          "temperature": 0.7,  
+          "top_p": 0.8,  
+          "num_ctx": 32000  
+        }  
+      }
       }
     },
     "bedrock": {

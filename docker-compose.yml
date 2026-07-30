@@ -31,6 +31,7 @@ services:
       - SERVER_BASE_URL=http://localhost:${PORT:-8001}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - LOG_FILE_PATH=${LOG_FILE_PATH:-api/logs/application.log}
+      - NEXT_TELEMETRY_DISABLED=1
       - OLLAMA_HOST=${OLLAMA_HOST:-http://localhost:11434}
       - DEEPWIKI_EMBEDDER_TYPE=${DEEPWIKI_EMBEDDER_TYPE:-ollama}
       - LOCAL_REPOS_ROOT=/app/local-repos   # The folder that will be searched for any LOCAL repositories
