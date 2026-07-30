@@ -237,6 +237,9 @@ export default function RepoWikiPage() {
   const [currentPageId, setCurrentPageId] = useState<string | undefined>();
   const [generatedPages, setGeneratedPages] = useState<Record<string, WikiPage>>({});
   const [pagesInProgress, setPagesInProgress] = useState(new Set<string>());
+
+  const [embeddingProgress, setEmbeddingProgress] = useState<{ current: number; total: number } | null>(null);
+
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [originalMarkdown, setOriginalMarkdown] = useState<Record<string, string>>({});
@@ -703,6 +706,7 @@ Remember:
     try {
       setStructureRequestInProgress(true);
       setLoadingMessage(messages.loading?.determiningStructure || 'Determining wiki structure...');
+      setEmbeddingProgress(null);
 
       // Get repository URL
       const repoUrl = getRepoUrl(effectiveRepoInfo);
@@ -886,8 +890,21 @@ IMPORTANT:
         // Create a promise that resolves when the WebSocket response is complete
         await new Promise<void>((resolve, reject) => {
           // Handle incoming messages
-          ws.onmessage = (event) => {
-            responseText += event.data;
+          ws.onmessage = (event) => {  
+            try {  
+              const parsed = JSON.parse(event.data);  
+              if (parsed && parsed.type === 'embedding_progress') {  
+                setEmbeddingProgress({ current: parsed.current, total: parsed.total });  
+                return;  
+              }  
+              if (parsed && parsed.type === 'embedding_complete') {  
+                setEmbeddingProgress(null);  
+                return;  
+              }  
+            } catch {  
+              // Not JSON — normal streamed XML/text content  
+            }  
+            responseText += event.data;  
           };
 
           // Handle WebSocket close
@@ -1177,13 +1194,15 @@ IMPORTANT:
         setLoadingMessage(undefined);
       }
 
-    } catch (error) {
-      console.error('Error determining wiki structure:', error);
-      setIsLoading(false);
-      setError(error instanceof Error ? error.message : 'An unknown error occurred');
-      setLoadingMessage(undefined);
-    } finally {
-      setStructureRequestInProgress(false);
+    } catch (error) {  
+      console.error('Error determining wiki structure:', error);  
+      setIsLoading(false);  
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');  
+      setLoadingMessage(undefined);  
+      setEmbeddingProgress(null);  
+    } finally {  
+      setStructureRequestInProgress(false);  
+      setEmbeddingProgress(null);  
     }
   }, [generatePageContent, currentToken, effectiveRepoInfo, pagesInProgress.size, structureRequestInProgress, selectedProviderState, selectedModelState, isCustomSelectedModelState, customSelectedModelState, modelExcludedDirs, modelExcludedFiles, language, messages.loading, isComprehensiveView]);
 
@@ -1991,7 +2010,26 @@ IMPORTANT:
               {loadingMessage || messages.common?.loading || 'Loading...'}
               {isExporting && (messages.loading?.preparingDownload || ' Please wait while we prepare your download...')}
             </p>
-
+            {/* Progress bar for embedding step */}  
+            {!wikiStructure && embeddingProgress && embeddingProgress.total > 0 && (  
+              <div className="w-full max-w-md mt-3">  
+                <div className="bg-[var(--background)]/50 rounded-full h-2 mb-3 overflow-hidden border border-[var(--border-color)]">  
+                  <div  
+                    className="bg-[var(--accent-primary)] h-2 rounded-full transition-all duration-300 ease-in-out"  
+                    style={{  
+                      width: `${Math.max(5, 100 * embeddingProgress.current / embeddingProgress.total)}%`  
+                    }}  
+                  />  
+                </div>  
+                <p className="text-xs text-[var(--muted)] text-center">  
+                  {messages.loading?.embeddingFiles  
+                    ? messages.loading.embeddingFiles  
+                        .replace('{current}', embeddingProgress.current.toString())  
+                        .replace('{total}', embeddingProgress.total.toString())  
+                    : `Embedding files: ${embeddingProgress.current} / ${embeddingProgress.total}`}  
+                </p>  
+              </div>  
+            )}  
             {/* Progress bar for page generation */}
             {wikiStructure && (
               <div className="w-full max-w-md mt-3">

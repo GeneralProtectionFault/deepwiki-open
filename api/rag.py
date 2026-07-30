@@ -349,34 +349,37 @@ IMPORTANT FORMATTING RULES:
 
         return valid_documents
 
-    def prepare_retriever(self, repo_url_or_path: str, type: str = "github", access_token: str = None,
-                      excluded_dirs: List[str] = None, excluded_files: List[str] = None,
-                      included_dirs: List[str] = None, included_files: List[str] = None):
-        """
-        Prepare the retriever for a repository.
-        Will load database from local storage if available.
-
-        Args:
-            repo_url_or_path: URL or local path to the repository
-            access_token: Optional access token for private repositories
-            excluded_dirs: Optional list of directories to exclude from processing
-            excluded_files: Optional list of file patterns to exclude from processing
-            included_dirs: Optional list of directories to include exclusively
-            included_files: Optional list of file patterns to include exclusively
-        """
-        self.initialize_db_manager()
-        self.repo_url_or_path = repo_url_or_path
-        self.transformed_docs = self.db_manager.prepare_database(
-            repo_url_or_path,
-            type,
-            access_token,
-            embedder_type=self.embedder_type,
-            model_override=self.embed_model,   # <-- ADD THIS
-            excluded_dirs=excluded_dirs,
-            excluded_files=excluded_files,
-            included_dirs=included_dirs,
-            included_files=included_files
-        )
+    def prepare_retriever(self, repo_url_or_path: str, type: str = "github", access_token: str = None,  
+                      excluded_dirs: List[str] = None, excluded_files: List[str] = None,  
+                      included_dirs: List[str] = None, included_files: List[str] = None,  
+                      progress_callback=None):  
+        """  
+        Prepare the retriever for a repository.  
+        Will load database from local storage if available.  
+  
+        Args:  
+            repo_url_or_path: URL or local path to the repository  
+            access_token: Optional access token for private repositories  
+            excluded_dirs: Optional list of directories to exclude from processing  
+            excluded_files: Optional list of file patterns to exclude from processing  
+            included_dirs: Optional list of directories to include exclusively  
+            included_files: Optional list of file patterns to include exclusively  
+            progress_callback: Optional callback(current, total) for embedding progress  
+        """  
+        self.initialize_db_manager()  
+        self.repo_url_or_path = repo_url_or_path  
+        self.transformed_docs = self.db_manager.prepare_database(  
+            repo_url_or_path,  
+            type,  
+            access_token,  
+            embedder_type=self.embedder_type,  
+            model_override=self.embed_model,   # <-- ADD THIS  
+            excluded_dirs=excluded_dirs,  
+            excluded_files=excluded_files,  
+            included_dirs=included_dirs,  
+            included_files=included_files,  
+            progress_callback=progress_callback  
+        )  
         logger.info(f"Loaded {len(self.transformed_docs)} documents for retrieval")
 
         # Validate and filter embeddings to ensure consistent sizes

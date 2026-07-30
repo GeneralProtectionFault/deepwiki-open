@@ -359,14 +359,21 @@ Make the workshop content in ${language === 'en' ? 'English' :
           // Use a local variable to accumulate content
           let accumulatedContent = '';
 
-          // Handle incoming messages
-          ws.onmessage = (event) => {
-            const chunk = event.data;
-            content += chunk;
-            accumulatedContent += chunk;
-
+          ws.onmessage = (event) => {  
+            try {  
+              const parsed = JSON.parse(event.data);  
+              if (parsed && (parsed.type === 'embedding_progress' || parsed.type === 'embedding_complete')) {  
+                return;  
+              }  
+            } catch {  
+              // Not JSON — normal streamed text  
+            }  
+            const chunk = event.data;  
+            content += chunk;  
+            accumulatedContent += chunk;  
+            
             // Update the state with the accumulated content
-            setWorkshopContent(accumulatedContent);
+            setWorkshopContent(accumulatedContent);  
           };
 
           // Handle WebSocket close

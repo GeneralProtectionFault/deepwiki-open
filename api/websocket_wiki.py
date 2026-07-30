@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import json
 import os
 from typing import List, Optional, Dict, Any
 from urllib.parse import unquote
@@ -87,30 +89,58 @@ async def handle_websocket_chat(websocket: WebSocket):
                     logger.warning(f"Request exceeds recommended token limit ({tokens} > 7500)")
                     input_too_large = True
 
-        # Create a new RAG instance for this request
-        try:
-            request_rag = RAG(provider=request.provider, model=request.model, embed_model=request.embed_model)
-
-            # Extract custom file filter parameters if provided
-            excluded_dirs = None
-            excluded_files = None
-            included_dirs = None
-            included_files = None
-
-            if request.excluded_dirs:
-                excluded_dirs = [unquote(dir_path) for dir_path in request.excluded_dirs.split('\n') if dir_path.strip()]
-                logger.info(f"Using custom excluded directories: {excluded_dirs}")
-            if request.excluded_files:
-                excluded_files = [unquote(file_pattern) for file_pattern in request.excluded_files.split('\n') if file_pattern.strip()]
-                logger.info(f"Using custom excluded files: {excluded_files}")
-            if request.included_dirs:
-                included_dirs = [unquote(dir_path) for dir_path in request.included_dirs.split('\n') if dir_path.strip()]
-                logger.info(f"Using custom included directories: {included_dirs}")
-            if request.included_files:
-                included_files = [unquote(file_pattern) for file_pattern in request.included_files.split('\n') if file_pattern.strip()]
-                logger.info(f"Using custom included files: {included_files}")
-
-            request_rag.prepare_retriever(request.repo_url, request.type, request.token, excluded_dirs, excluded_files, included_dirs, included_files)
+        # Create a new RAG instance for this request  
+        try:  
+            request_rag = RAG(provider=request.provider, model=request.model, embed_model=request.embed_model)  
+  
+            # Extract custom file filter parameters if provided  
+            excluded_dirs = None  
+            excluded_files = None  
+            included_dirs = None  
+            included_files = None  
+  
+            if request.excluded_dirs:  
+                excluded_dirs = [unquote(dir_path) for dir_path in request.excluded_dirs.split('\n') if dir_path.strip()]  
+                logger.info(f"Using custom excluded directories: {excluded_dirs}")  
+            if request.excluded_files:  
+                excluded_files = [unquote(file_pattern) for file_pattern in request.excluded_files.split('\n') if file_pattern.strip()]  
+                logger.info(f"Using custom excluded files: {excluded_files}")  
+            if request.included_dirs:  
+                included_dirs = [unquote(dir_path) for dir_path in request.included_dirs.split('\n') if dir_path.strip()]  
+                logger.info(f"Using custom included directories: {included_dirs}")  
+            if request.included_files:  
+                included_files = [unquote(file_pattern) for file_pattern in request.included_files.split('\n') if file_pattern.strip()]  
+                logger.info(f"Using custom included files: {included_files}")  
+  
+            loop = asyncio.get_event_loop()  
+            progress_queue: asyncio.Queue = asyncio.Queue()  
+  
+            def _progress_callback(current, total):  
+                loop.call_soon_threadsafe(  
+                    progress_queue.put_nowait,  
+                    {"type": "embedding_progress", "current": current, "total": total},  
+                )  
+  
+            async def _drain_progress():  
+                while True:  
+                    item = await progress_queue.get()  
+                    if item is None:  
+                        break  
+                    await websocket.send_text(json.dumps(item))  
+  
+            drain_task = asyncio.create_task(_drain_progress())  
+            try:  
+                await asyncio.to_thread(  
+                    request_rag.prepare_retriever,  
+                    request.repo_url, request.type, request.token,  
+                    excluded_dirs, excluded_files, included_dirs, included_files,  
+                    progress_callback=_progress_callback,  
+                )  
+            finally:  
+                await progress_queue.put(None)  
+                await drain_task  
+                await websocket.send_text(json.dumps({"type": "embedding_complete"}))  
+  
             logger.info(f"Retriever prepared for {request.repo_url}")
         except ValueError as e:
             if "No valid documents with embeddings found" in str(e):

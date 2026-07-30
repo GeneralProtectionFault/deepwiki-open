@@ -56,9 +56,17 @@ export const createChatWebSocket = (
     ws.send(JSON.stringify(request));
   };
   
-  ws.onmessage = (event) => {
-    // Call the message handler with the received text
-    onMessage(event.data);
+  ws.onmessage = (event) => {  
+    try {  
+      const parsed = JSON.parse(event.data);  
+      if (parsed && (parsed.type === 'embedding_progress' || parsed.type === 'embedding_complete')) {  
+        // Swallow embedding-progress control messages; they are not part of the chat response text.  
+        return;  
+      }  
+    } catch {  
+      // Not JSON — normal streamed text chunk, fall through  
+    }  
+    onMessage(event.data);  
   };
   
   ws.onerror = (error) => {

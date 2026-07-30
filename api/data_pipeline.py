@@ -387,7 +387,25 @@ def read_all_documents(path: str, embedder_type: str = None, is_ollama_embedder:
     logger.info(f"Found {len(documents)} documents")
     return documents
 
-def prepare_data_pipeline(embedder_type: str = None, is_ollama_embedder: bool = None, model_override: str = None):
+
+class ProgressToEmbeddings:  
+    """Wraps ToEmbeddings to report incremental progress via a callback."""  
+    def __init__(self, embedder, batch_size: int, progress_callback):  
+        self._inner = ToEmbeddings(embedder=embedder, batch_size=batch_size)  
+        self._batch_size = batch_size  
+        self._progress_callback = progress_callback  
+  
+    def __call__(self, documents):  
+        total = len(documents)  
+        results = []  
+        for start in range(0, total, self._batch_size):  
+            chunk = documents[start:start + self._batch_size]  
+            results.extend(self._inner(chunk))  
+            self._progress_callback(min(start + self._batch_size, total), total)  
+        return results
+
+
+def prepare_data_pipeline(embedder_type: str = None, is_ollama_embedder: bool = None, model_override: str = None, progress_callback=None):
     """
     Creates and returns the data transformation pipeline.
 
@@ -417,13 +435,18 @@ def prepare_data_pipeline(embedder_type: str = None, is_ollama_embedder: bool = 
     # Choose appropriate processor based on embedder type
     if embedder_type == 'ollama':
         # Use Ollama document processor for single-document processing
-        embedder_transformer = OllamaDocumentProcessor(embedder=embedder)
+        embedder_transformer = OllamaDocumentProcessor(embedder=embedder, progress_callback=progress_callback)
     else:
         # Use batch processing for OpenAI and Google embedders
         batch_size = embedder_config.get("batch_size", 500)
-        embedder_transformer = ToEmbeddings(
-            embedder=embedder, batch_size=batch_size
-        )
+        if progress_callback:  
+            embedder_transformer = ProgressToEmbeddings(  
+                embedder=embedder, batch_size=batch_size, progress_callback=progress_callback  
+            )  
+        else:  
+            embedder_transformer = ToEmbeddings(  
+                embedder=embedder, batch_size=batch_size  
+            )
 
     data_transformer = adal.Sequential(
         splitter, embedder_transformer
@@ -431,7 +454,7 @@ def prepare_data_pipeline(embedder_type: str = None, is_ollama_embedder: bool = 
     return data_transformer
 
 def transform_documents_and_save_to_db(
-    documents: List[Document], db_path: str, embedder_type: str = None, is_ollama_embedder: bool = None, model_override: str = None
+    documents: List[Document], db_path: str, embedder_type: str = None, is_ollama_embedder: bool = None, model_override: str = None, progress_callback=None 
 ) -> LocalDB:
     """
     Transforms a list of documents and saves them to a local database.
@@ -445,7 +468,8 @@ def transform_documents_and_save_to_db(
                                            If None, will be determined from configuration.
     """
     # Get the data transformer
-    data_transformer = prepare_data_pipeline(embedder_type, is_ollama_embedder, model_override=model_override)
+    data_transformer = prepare_data_pipeline(embedder_type, is_ollama_embedder, model_override=model_override,  
+                                              progress_callback=progress_callback)  
 
     # Save the documents to a local database
     db = LocalDB()
@@ -726,39 +750,41 @@ class DatabaseManager:
         self.repo_url_or_path = None
         self.repo_paths = None
 
-    def prepare_database(self, repo_url_or_path: str, repo_type: str = None, access_token: str = None,
-                         embedder_type: str = None, is_ollama_embedder: bool = None,
-                         excluded_dirs: List[str] = None, excluded_files: List[str] = None,
-                         included_dirs: List[str] = None, included_files: List[str] = None,
-                         model_override: str = None) -> List[Document]:
-        """
-        Create a new database from the repository.
-
-        Args:
-            repo_type(str): Type of repository
-            repo_url_or_path (str): The URL or local path of the repository
-            access_token (str, optional): Access token for private repositories
-            embedder_type (str, optional): Embedder type to use ('openai', 'google', 'ollama').
-                                         If None, will be determined from configuration.
-            is_ollama_embedder (bool, optional): DEPRECATED. Use embedder_type instead.
-                                               If None, will be determined from configuration.
-            excluded_dirs (List[str], optional): List of directories to exclude from processing
-            excluded_files (List[str], optional): List of file patterns to exclude from processing
-            included_dirs (List[str], optional): List of directories to include exclusively
-            included_files (List[str], optional): List of file patterns to include exclusively
-
-        Returns:
-            List[Document]: List of Document objects
-        """
-        # Handle backward compatibility
-        if embedder_type is None and is_ollama_embedder is not None:
-            embedder_type = 'ollama' if is_ollama_embedder else None
-
-        self.reset_database()
-        self._create_repo(repo_url_or_path, repo_type, access_token)
-        return self.prepare_db_index(embedder_type=embedder_type, model_override=model_override,
-                                     excluded_dirs=excluded_dirs, excluded_files=excluded_files,
-                                     included_dirs=included_dirs, included_files=included_files)
+    def prepare_database(self, repo_url_or_path: str, repo_type: str = None, access_token: str = None,  
+                         embedder_type: str = None, is_ollama_embedder: bool = None,  
+                         excluded_dirs: List[str] = None, excluded_files: List[str] = None,  
+                         included_dirs: List[str] = None, included_files: List[str] = None,  
+                         model_override: str = None, progress_callback=None) -> List[Document]:  
+        """  
+        Create a new database from the repository.  
+  
+        Args:  
+            repo_type(str): Type of repository  
+            repo_url_or_path (str): The URL or local path of the repository  
+            access_token (str, optional): Access token for private repositories  
+            embedder_type (str, optional): Embedder type to use ('openai', 'google', 'ollama').  
+                                         If None, will be determined from configuration.  
+            is_ollama_embedder (bool, optional): DEPRECATED. Use embedder_type instead.  
+                                               If None, will be determined from configuration.  
+            excluded_dirs (List[str], optional): List of directories to exclude from processing  
+            excluded_files (List[str], optional): List of file patterns to exclude from processing  
+            included_dirs (List[str], optional): List of directories to include exclusively  
+            included_files (List[str], optional): List of file patterns to include exclusively  
+            progress_callback: Optional callback(current, total) for embedding progress  
+  
+        Returns:  
+            List[Document]: List of Document objects  
+        """  
+        # Handle backward compatibility  
+        if embedder_type is None and is_ollama_embedder is not None:  
+            embedder_type = 'ollama' if is_ollama_embedder else None  
+  
+        self.reset_database()  
+        self._create_repo(repo_url_or_path, repo_type, access_token)  
+        return self.prepare_db_index(embedder_type=embedder_type, model_override=model_override,  
+                                     excluded_dirs=excluded_dirs, excluded_files=excluded_files,  
+                                     included_dirs=included_dirs, included_files=included_files,  
+                                     progress_callback=progress_callback)
 
     def reset_database(self):
         """
@@ -848,7 +874,7 @@ class DatabaseManager:
     def prepare_db_index(self, embedder_type: str = None, is_ollama_embedder: bool = None,
                         excluded_dirs: List[str] = None, excluded_files: List[str] = None,
                         included_dirs: List[str] = None, included_files: List[str] = None,
-                        model_override: str = None) -> List[Document]:
+                        model_override: str = None, progress_callback=None) -> List[Document]:
         """
         Prepare the indexed database for the repository.
 
@@ -923,7 +949,8 @@ class DatabaseManager:
             included_files=included_files
         )
         self.db = transform_documents_and_save_to_db(
-            documents, self.repo_paths["save_db_file"], embedder_type=embedder_type, model_override=model_override
+            documents, self.repo_paths["save_db_file"], embedder_type=embedder_type, model_override=model_override,
+            progress_callback=progress_callback  
         )
         logger.info(f"Total documents: {len(documents)}")
         transformed_docs = self.db.get_transformed_data(key="split_and_embed")

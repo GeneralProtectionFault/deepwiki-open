@@ -296,8 +296,16 @@ Give me the numbered list with brief descriptions for each slide. Be creative bu
             // Don't resolve here, wait for the complete response
           };
 
-          ws.onmessage = (event) => {
-            const chunk = event.data;
+          ws.onmessage = (event) => {  
+            try {  
+              const parsed = JSON.parse(event.data);  
+              if (parsed && (parsed.type === 'embedding_progress' || parsed.type === 'embedding_complete')) {  
+                return;  
+              }  
+            } catch {  
+              // Not JSON — normal streamed text  
+            }  
+            const chunk = event.data;  
             planContent += chunk;
           };
 
@@ -572,10 +580,18 @@ Please return ONLY the HTML with no markdown formatting or code blocks. Just the
               // Don't resolve here, wait for the complete response
             };
 
-            ws.onmessage = (event) => {
-              const chunk = event.data;
-              slideContent += chunk;
-            };
+          ws.onmessage = (event) => {  
+            try {  
+              const parsed = JSON.parse(event.data);  
+              if (parsed && (parsed.type === 'embedding_progress' || parsed.type === 'embedding_complete')) {  
+                return;  
+              }  
+            } catch {  
+              // Not JSON — normal streamed text  
+            }  
+            const chunk = event.data;  
+            slideContent += chunk;   // or slideContent += chunk; for the second occurrence  
+          };
 
             ws.onclose = () => {
               clearTimeout(timeout);
