@@ -20,7 +20,7 @@ from api.config import (
     AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY,
 )
-from api.data_pipeline import count_tokens, get_file_content
+from api.data_pipeline import count_tokens, get_file_content, truncate_prompt_to_fit
 from api.bedrock_client import BedrockClient
 from api.openai_client import OpenAIClient
 from api.litellm_client import LiteLLMClient
@@ -78,15 +78,37 @@ async def handle_websocket_chat(websocket: WebSocket):
         request_data = await websocket.receive_json()
         request = ChatCompletionRequest(**request_data)
 
-        # Check if request contains very large input
-        input_too_large = False
-        if request.messages and len(request.messages) > 0:
-            last_message = request.messages[-1]
-            if hasattr(last_message, 'content') and last_message.content:
-                tokens = count_tokens(last_message.content, request.provider == "ollama")
-                logger.info(f"Request size: {tokens} tokens")
-                if tokens > 8000:
-                    logger.warning(f"Request exceeds recommended token limit ({tokens} > 7500)")
+        # Check if request contains very large input, and determine the model's  
+        # actual usable context budget so we can gracefully truncate instead of  
+        # failing the whole request outright.  
+        input_too_large = False  
+        if request.messages and len(request.messages) > 0:  
+            last_message = request.messages[-1]  
+            if hasattr(last_message, 'content') and last_message.content:  
+                # Resolve the target model's context window up front so truncation  
+                # is based on what this specific model can actually hold.  
+                try:  
+                    _model_cfg = get_model_config(request.provider, request.model)["model_kwargs"]  
+                    num_ctx = _model_cfg.get("num_ctx", 8192) if request.provider == "ollama" else 32000  
+                except Exception:  
+                    num_ctx = 8192  
+  
+                # Reserve room for the system prompt, RAG context, conversation  
+                # history, and the model's own generated output.  
+                RESERVED_TOKENS = 2000  
+                max_query_tokens = max(num_ctx - RESERVED_TOKENS, 512)  
+  
+                tokens = count_tokens(last_message.content, request.provider == "ollama")  
+                logger.info(f"Request size: {tokens} tokens (budget: {max_query_tokens})")  
+  
+                if tokens > max_query_tokens:  
+                    logger.warning(  
+                        f"Request ({tokens} tokens) exceeds model's usable context "  
+                        f"budget ({max_query_tokens}); truncating instead of failing."  
+                    )  
+                    last_message.content = truncate_prompt_to_fit(  
+                        last_message.content, max_query_tokens, request.provider == "ollama"  
+                    )  
                     input_too_large = True
 
         # Create a new RAG instance for this request  

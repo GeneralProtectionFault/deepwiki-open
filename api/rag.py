@@ -9,6 +9,11 @@ import adalflow as adal
 
 from api.tools.embedder import get_embedder
 from api.prompts import RAG_SYSTEM_PROMPT as system_prompt, RAG_TEMPLATE
+from api.ollama_patch import (
+    _get_embed_chunk_limit,
+    _chunk_text,
+    _mean_pool_embeddings,
+)
 
 # Create our own implementation of the conversation classes
 @dataclass
@@ -198,16 +203,45 @@ class RAG(adal.Component):
         self.embedder = get_embedder(embedder_type=self.embedder_type, model_override=embed_model)
 
         self_weakref = weakref.ref(self)
-        # Patch: ensure query embedding is always single string for Ollama
+        # Chunk-and-pool embedder: splits oversized queries into safe pieces,
+        # embeds each, and mean-pools the result.  No query content is dropped.
         def single_string_embedder(query):
-            # Accepts either a string or a list, always returns embedding for a single string
             if isinstance(query, list):
                 if len(query) != 1:
                     raise ValueError("Ollama embedder only supports a single string")
                 query = query[0]
             instance = self_weakref()
             assert instance is not None, "RAG instance is no longer available, but the query embedder was called."
-            return instance.embedder(input=query)
+
+            chunk_limit = _get_embed_chunk_limit()
+            chunks = _chunk_text(query, chunk_limit)
+
+            if len(chunks) == 1:
+                return instance.embedder(input=query)
+
+            logger.info(
+                "Chunking oversized query into %d pieces for embedding (limit=%d tokens)",
+                len(chunks), chunk_limit,
+            )
+            chunk_embeddings = []
+            for ci, chunk in enumerate(chunks):
+                cr = instance.embedder(input=chunk)
+                if cr and cr.data and len(cr.data) > 0:
+                    chunk_embeddings.append(cr.data[0].embedding)
+                else:
+                    logger.warning("Empty embedding returned for query chunk %d/%d", ci + 1, len(chunks))
+
+            if not chunk_embeddings:
+                raise RuntimeError("Failed to embed any query chunk")
+
+            pooled = _mean_pool_embeddings(chunk_embeddings)
+            # Wrap into an EmbedderOutput-compatible object so the FAISS retriever
+            # can consume it the same way as a single-call result.
+            from adalflow.core.types import Embedding, EmbedderOutput
+            return EmbedderOutput(
+                data=[Embedding(embedding=pooled, index=0)],
+                error=None,
+            )
 
         # Use single string embedder for Ollama, regular embedder for others
         self.query_embedder = single_string_embedder if self.is_ollama_embedder else self.embedder

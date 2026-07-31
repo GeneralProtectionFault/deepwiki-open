@@ -15,6 +15,7 @@ from api.ollama_patch import OllamaDocumentProcessor
 from urllib.parse import urlparse, urlunparse, quote
 import requests
 from requests.exceptions import RequestException
+import re
 
 from api.tools.embedder import get_embedder
 
@@ -68,6 +69,71 @@ def count_tokens(text: str, embedder_type: str = None, is_ollama_embedder: bool 
         logger.warning(f"Error counting tokens with tiktoken: {e}")
         # Rough approximation: 4 characters per token
         return len(text) // 4
+
+
+def truncate_prompt_to_fit(content: str, max_tokens: int, embedder_type: str = None) -> str:  
+    """  
+    Chunk-aware truncation for oversized prompt content (e.g. a huge <file_tree> block).  
+  
+    Rather than failing outright or blindly cutting the string, this splits the file  
+    tree into per-line "chunks" (one file path per chunk, mirroring the TextSplitter  
+    approach used for embeddings) and greedily keeps as many as fit in the token  
+    budget, prioritizing shallower paths (top-level structure) over deeply nested files.  
+    Falls back to head/tail truncation for content with no <file_tree> section.  
+    """  
+    total_tokens = count_tokens(content, embedder_type)  
+    if total_tokens <= max_tokens:  
+        return content  
+  
+    logger.warning(  
+        f"Prompt content ({total_tokens} tokens) exceeds available context budget "  
+        f"({max_tokens} tokens); applying chunked truncation instead of failing."  
+    )  
+  
+    file_tree_match = re.search(r'<file_tree>\n([\s\S]*?)\n</file_tree>', content)  
+    if not file_tree_match:  
+        return _truncate_generic(content, max_tokens)  
+  
+    file_tree_text = file_tree_match.group(1)  
+    lines = [l for l in file_tree_text.split('\n') if l.strip()]  
+  
+    # Tokens consumed by everything OTHER than the file tree (instructions, readme, etc.)  
+    non_tree_tokens = count_tokens(content.replace(file_tree_text, ''), embedder_type)  
+    tree_budget = max(max_tokens - non_tree_tokens - 200, 200)  # 200-token safety margin  
+  
+    # Chunk-priority: shallower paths (fewer '/') are kept first, since they convey  
+    # overall project structure; deeply nested files are dropped first.  
+    lines_by_priority = sorted(enumerate(lines), key=lambda pair: pair[1].count('/'))  
+  
+    kept_indices = set()  
+    used_tokens = 0  
+    for idx, line in lines_by_priority:  
+        line_tokens = count_tokens(line + '\n', embedder_type)  
+        if used_tokens + line_tokens > tree_budget:  
+            continue  
+        kept_indices.add(idx)  
+        used_tokens += line_tokens  
+  
+    kept_lines = [lines[i] for i in sorted(kept_indices)]  
+    omitted = len(lines) - len(kept_lines)  
+    if omitted > 0:  
+        kept_lines.append(f"... ({omitted} additional files omitted to fit the model's context window) ...")  
+  
+    truncated_tree = '\n'.join(kept_lines)  
+    return content.replace(file_tree_text, truncated_tree)  
+  
+  
+def _truncate_generic(content: str, max_tokens: int) -> str:  
+    """Fallback: keep the head and tail of the content, drop the middle."""  
+    encoding = tiktoken.get_encoding("cl100k_base")  
+    tokens = encoding.encode(content)  
+    if len(tokens) <= max_tokens:  
+        return content  
+    half = max_tokens // 2  
+    head = encoding.decode(tokens[:half])  
+    tail = encoding.decode(tokens[-half:])  
+    return f"{head}\n\n... [content truncated to fit model context window] ...\n\n{tail}"
+
 
 def download_repo(repo_url: str, local_path: str, repo_type: str = None, access_token: str = None) -> str:
     """
